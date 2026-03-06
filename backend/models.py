@@ -9,7 +9,7 @@ class Item(Base):
     item_id = Column(Integer, primary_key=True, index=True)
     item_name = Column(String(255), nullable=False)
     current_quantity = Column(Integer, default=0, nullable=False)
-    picture = Column(String(500))
+    picture_path = Column(String(500))  # Path to the uploaded image file
 
     # This creates a link to fetch all operations for a specific item
     operations = relationship("Operation", back_populates="item")
