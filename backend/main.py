@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -83,7 +83,7 @@ def get_items(db: Session = Depends(get_db)):
 # 2. Add a new item to the system (quantity starts at 0)
 @app.post("/items/")
 def create_item(
-    item_name: str,
+    item_name: str = Form(...),
     picture: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
