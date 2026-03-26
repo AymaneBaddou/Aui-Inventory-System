@@ -8,6 +8,7 @@ import AddItem from './pages/AddItem'
 import LogOperation from './pages/LogOperation'
 import Inventory from './pages/Inventory'
 import ChangePassword from './pages/ChangePassword'
+import TransactionHistory from './pages/TransactionHistory'
 
 // Protected Route Component
 function ProtectedRoute({ children, isAuthenticated }) {
@@ -129,6 +130,17 @@ function App() {
           element={
             <ProtectedRoute isAuthenticated={isAuthenticated}>
               <ChangePassword />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/transaction-history"
+          element={
+            <ProtectedRoute isAuthenticated={isAuthenticated}>
+              <Layout onLogout={handleLogout}>
+                <TransactionHistory />
+              </Layout>
             </ProtectedRoute>
           }
         />

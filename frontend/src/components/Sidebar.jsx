@@ -7,7 +7,7 @@ function Sidebar({ onClose, onLogout }) {
     { path: '/', label: 'Dashboard', icon: '📊', category: 'main' },
     { path: '/add-item', label: 'Add Item', icon: '➕', category: 'main' },
     { path: '/log-operation', label: 'Log Operation', icon: '📝', category: 'operations' },
-    { path: '/inventory', label: 'Inventory', icon: '📦', category: 'operations' },
+    { path: '/transaction-history', label: 'Transaction History', icon: '📋', category: 'operations' },
     { path: '/change-password', label: 'Change Password', icon: '🔒', category: 'account' }
   ]
 
@@ -37,11 +37,6 @@ function Sidebar({ onClose, onLogout }) {
         <div className="flex items-center justify-between">
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-yellow-400 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-black" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-              </svg>
-            </div>
             <span className="text-lg font-semibold text-gray-900">AUI Inventory</span>
           </div>
 
