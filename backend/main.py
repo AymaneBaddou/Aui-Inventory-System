@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Request
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -8,6 +8,7 @@ from database import engine, SessionLocal
 import os
 import shutil
 from pathlib import Path
+from datetime import datetime
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -130,4 +131,59 @@ def create_operation(op: OperationCreate, db: Session = Depends(get_db)):
     db.refresh(new_op)
     
     return {"message": "Operation successful", "operation": new_op, "new_quantity": db_item.current_quantity}
+
+# 4. Get all operations with optional filtering
+@app.get("/operations/")
+def get_operations(
+    db: Session = Depends(get_db),
+    start_date: str = Query(None, description="Start date in YYYY-MM-DD format"),
+    end_date: str = Query(None, description="End date in YYYY-MM-DD format"),
+    item_id: int = Query(None, description="Filter by item ID"),
+    department: str = Query(None, description="Filter by department"),
+    person_in_charge: str = Query(None, description="Filter by person in charge")
+):
+    query = db.query(models.Operation).join(models.Item)
+    
+    # Apply filters
+    if start_date:
+        try:
+            start = datetime.strptime(start_date, "%Y-%m-%d")
+            query = query.filter(models.Operation.operation_date >= start)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD")
+    
+    if end_date:
+        try:
+            end = datetime.strptime(end_date, "%Y-%m-%d")
+            # Set end date to end of day
+            end = end.replace(hour=23, minute=59, second=59)
+            query = query.filter(models.Operation.operation_date <= end)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD")
+    
+    if item_id:
+        query = query.filter(models.Operation.item_id == item_id)
+    
+    if department:
+        query = query.filter(models.Operation.department.ilike(f"%{department}%"))
+    
+    if person_in_charge:
+        query = query.filter(models.Operation.person_in_charge.ilike(f"%{person_in_charge}%"))
+    
+    operations = query.order_by(models.Operation.operation_date.desc()).all()
+    
+    result = []
+    for op in operations:
+        result.append({
+            "operation_id": op.operation_id,
+            "item_id": op.item_id,
+            "item_name": op.item.item_name,
+            "operation_type": op.operation_type,
+            "quantity_moved": op.quantity_moved,
+            "operation_date": op.operation_date.isoformat(),
+            "person_in_charge": op.person_in_charge,
+            "department": op.department
+        })
+    
+    return result
 
