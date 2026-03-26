@@ -19,6 +19,12 @@ app = FastAPI(title="AUI Inventory API")
 
 app.mount("/images", StaticFiles(directory="uploads"), name="images")
 
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://aui-inventory-frontend.onrender.com", # REPLACE THIS with your actual frontend URL
+]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], # Temporarily allow all URLs for deployment testing
