@@ -25,7 +25,7 @@ function AddItem({ onItemAdded }) {
       formData.append('picture', selectedFile)
     }
     
-    axios.post('http://127.0.0.1:8000/items/', formData, {
+    axios.post(`${import.meta.env.VITE_API_BASE_URL}/items/`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
@@ -33,7 +33,7 @@ function AddItem({ onItemAdded }) {
     .then((response) => {
       const newItemId = response.data.item_id;
       if (parseInt(initialQuantity) > 0) {
-        return axios.post('http://127.0.0.1:8000/operations/', {
+        return axios.post(`${import.meta.env.VITE_API_BASE_URL}/operations/`, {
           item_id: newItemId,
           operation_type: 'in',
           quantity_moved: parseInt(initialQuantity),

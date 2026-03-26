@@ -10,7 +10,7 @@ function LogOperation({ items, onOperationLogged }) {
 
   const handleOperation = (e) => {
     e.preventDefault()
-    axios.post('http://127.0.0.1:8000/operations/', {
+    axios.post(`${import.meta.env.VITE_API_BASE_URL}/operations/`, {
       item_id: parseInt(opItemId),
       operation_type: opType,
       quantity_moved: parseInt(opQuantity),

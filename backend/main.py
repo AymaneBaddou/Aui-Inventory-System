@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -59,7 +59,7 @@ def read_root():
 
 # 1. Get all items
 @app.get("/items/")
-def get_items(db: Session = Depends(get_db)):
+def get_items(request: Request, db: Session = Depends(get_db)):
     items = db.query(models.Item).all()
     result = []
     for item in items:
@@ -67,7 +67,7 @@ def get_items(db: Session = Depends(get_db)):
             "item_id": item.item_id,
             "item_name": item.item_name,
             "current_quantity": item.current_quantity,
-            "picture_url": f"http://127.0.0.1:8000/images/{item.picture_path.split('/')[-1]}" if item.picture_path else None
+            "picture_url": f"{request.url.scheme}://{request.url.hostname}:{request.url.port}/images/{item.picture_path.split('/')[-1]}" if item.picture_path else None
         }
         result.append(item_dict)
     return result
