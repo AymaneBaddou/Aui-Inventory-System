@@ -23,6 +23,7 @@ class Operation(Base):
     quantity_moved = Column(Integer, nullable=False)
     operation_date = Column(DateTime, default=datetime.utcnow)
     person_in_charge = Column(String(255), nullable=False)
+    department = Column(String(255), nullable=False)
 
     # This creates a link back to the parent item
     item = relationship("Item", back_populates="operations")

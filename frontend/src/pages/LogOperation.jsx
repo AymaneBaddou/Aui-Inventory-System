@@ -6,6 +6,7 @@ function LogOperation({ items, onOperationLogged }) {
   const [opType, setOpType] = useState('in')
   const [opQuantity, setOpQuantity] = useState('')
   const [opPerson, setOpPerson] = useState('')
+  const [opDepartment, setOpDepartment] = useState('')
 
   const handleOperation = (e) => {
     e.preventDefault()
@@ -13,11 +14,13 @@ function LogOperation({ items, onOperationLogged }) {
       item_id: parseInt(opItemId),
       operation_type: opType,
       quantity_moved: parseInt(opQuantity),
-      person_in_charge: opPerson
+      person_in_charge: opPerson,
+      department: opDepartment
     })
     .then(() => {
       setOpQuantity('')
       setOpPerson('')
+      setOpDepartment('')
       onOperationLogged() // Callback to refresh inventory
     })
     .catch(error => {
@@ -96,6 +99,18 @@ function LogOperation({ items, onOperationLogged }) {
               className={inputStyles}
             />
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
+          <input
+            type="text"
+            placeholder="Department requesting the item"
+            value={opDepartment}
+            onChange={(e) => setOpDepartment(e.target.value)}
+            required
+            className={inputStyles}
+          />
         </div>
 
         <button type="submit" className={buttonStyles}>
