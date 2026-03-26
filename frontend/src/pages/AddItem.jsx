@@ -32,23 +32,36 @@ function AddItem({ onItemAdded }) {
     })
     .then((response) => {
       const newItemId = response.data.item_id;
+      // Call onItemAdded immediately after item creation
+      onItemAdded();
+      
       if (parseInt(initialQuantity) > 0) {
         return axios.post(`${import.meta.env.VITE_API_BASE_URL}/operations/`, {
           item_id: newItemId,
           operation_type: 'in',
           quantity_moved: parseInt(initialQuantity),
-          person_in_charge: 'Initial Setup'
+          person_in_charge: 'Initial Setup',
+          department: 'Inventory'
         });
       }
     })
     .then(() => {
-      setItemName('')
-      setInitialQuantity('')
-      setSelectedFile(null)
-      onItemAdded() // Callback to refresh inventory
+      // Refresh again after operations if needed
+      if (parseInt(initialQuantity) > 0) {
+        onItemAdded();
+      }
     })
-    .catch(error => console.error("Error adding item:", error))
-    .finally(() => setIsUploading(false))
+    .catch(error => {
+      console.error("Error:", error);
+      // Still refresh the list even if operations failed
+      onItemAdded();
+    })
+    .finally(() => {
+      setIsUploading(false);
+      setItemName('');
+      setInitialQuantity('');
+      setSelectedFile(null);
+    })
   }
 
   const inputStyles = "w-full bg-white border border-gray-300 text-gray-900 px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all placeholder-gray-500";
