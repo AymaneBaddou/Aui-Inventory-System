@@ -29,7 +29,7 @@ function App() {
   }, [])
 
   const fetchItems = () => {
-    axios.get('http://127.0.0.1:8000/items/')
+    axios.get('https://aui-inventory-system.onrender.com/items/')
       .then(response => {
         setItems(response.data)
       })
