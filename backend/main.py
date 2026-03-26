@@ -63,11 +63,14 @@ def get_items(request: Request, db: Session = Depends(get_db)):
     items = db.query(models.Item).all()
     result = []
     for item in items:
+        base_url = f"{request.url.scheme}://{request.url.hostname}"
+        if request.url.port and ((request.url.scheme == 'https' and request.url.port != 443) or (request.url.scheme == 'http' and request.url.port != 80)):
+            base_url += f":{request.url.port}"
         item_dict = {
             "item_id": item.item_id,
             "item_name": item.item_name,
             "current_quantity": item.current_quantity,
-            "picture_url": f"{request.url.scheme}://{request.url.hostname}:{request.url.port}/images/{item.picture_path.split('/')[-1]}" if item.picture_path else None
+            "picture_url": f"{base_url}/images/{item.picture_path.split('/')[-1]}" if item.picture_path else None
         }
         result.append(item_dict)
     return result
