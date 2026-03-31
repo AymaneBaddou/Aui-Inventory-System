@@ -1,15 +1,17 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from jose import JWTError, jwt
 from pydantic import BaseModel
 import models
 from database import engine, SessionLocal
 import os
 import shutil
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
 from passlib.context import CryptContext
 
@@ -40,13 +42,70 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Temporarily allow all URLs for deployment testing
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+
+SECRET_KEY = os.getenv("SECRET_KEY", "change-this-secret-key")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login/")
+
+class TokenData(BaseModel):
+    email: str | None = None
+    is_admin: bool = False
+
+
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str | None = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+        token_data = TokenData(email=email, is_admin=payload.get("is_admin", False))
+    except JWTError:
+        raise credentials_exception
+    user = db.query(models.User).filter(models.User.email == token_data.email).first()
+    if user is None:
+        raise credentials_exception
+    return user
+
+
+def get_current_active_user(current_user: models.User = Depends(get_current_user)):
+    if not current_user.is_active:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    return current_user
+
+
+def get_current_active_admin(current_user: models.User = Depends(get_current_active_user)):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+    return current_user
+
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
@@ -80,14 +139,6 @@ with SessionLocal() as db:
             first_user.is_admin = True
             db.commit()
 
-
-def get_db():
-    db = SessionLocal()
-    try: 
-        yield db
-    finally:
-        db.close()
-
 # --- PYDANTIC SCHEMAS (For validating incoming data) ---
 class ItemCreate(BaseModel):
     item_name: str
@@ -109,7 +160,6 @@ class UserCreate(BaseModel):
     full_name: str | None = None
 
 class ChangePasswordRequest(BaseModel):
-    email: str
     current_password: str
     new_password: str
 
@@ -121,9 +171,13 @@ def login(login_request: LoginRequest, db: Session = Depends(get_db)):
     if not user or not verify_password(login_request.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    token = str(uuid.uuid4())
+    token_data = {
+        "sub": user.email,
+        "is_admin": user.is_admin,
+    }
+    access_token = create_access_token(data=token_data)
     return {
-        "access_token": token,
+        "access_token": access_token,
         "token_type": "bearer",
         "user_email": user.email,
         "full_name": user.full_name,
@@ -132,21 +186,20 @@ def login(login_request: LoginRequest, db: Session = Depends(get_db)):
 
 
 @app.post("/change-password/")
-def change_password(change_request: ChangePasswordRequest, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == change_request.email).first()
-    if not user or not verify_password(change_request.current_password, user.hashed_password):
+def change_password(change_request: ChangePasswordRequest, current_user: models.User = Depends(get_current_active_user), db: Session = Depends(get_db)):
+    if not verify_password(change_request.current_password, current_user.hashed_password):
         raise HTTPException(status_code=401, detail="Current password is incorrect")
 
     if len(change_request.new_password) < 6:
         raise HTTPException(status_code=400, detail="New password must be at least 6 characters long")
 
-    user.hashed_password = get_password_hash(change_request.new_password)
+    current_user.hashed_password = get_password_hash(change_request.new_password)
     db.commit()
     return {"message": "Password updated successfully"}
 
 
 @app.post("/users/")
-def create_user(user_create: UserCreate, db: Session = Depends(get_db)):
+def create_user(user_create: UserCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_admin)):
     existing_user = db.query(models.User).filter(models.User.email == user_create.email).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="A user with that email already exists")
@@ -171,7 +224,7 @@ def create_user(user_create: UserCreate, db: Session = Depends(get_db)):
 
 
 @app.get("/users/")
-def list_users(db: Session = Depends(get_db)):
+def list_users(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_admin)):
     users = db.query(models.User).all()
     return [
         {
@@ -188,9 +241,19 @@ def list_users(db: Session = Depends(get_db)):
 def read_root():
     return {"Status": "Success", "Message": "The AUI Inventory Backend is running!"}
 
+@app.get("/me/")
+def read_current_user(current_user: models.User = Depends(get_current_active_user)):
+    return {
+        "user_id": current_user.user_id,
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "is_active": current_user.is_active,
+        "is_admin": current_user.is_admin
+    }
+
 # 1. Get all items
 @app.get("/items/")
-def get_items(request: Request, db: Session = Depends(get_db)):
+def get_items(request: Request, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     items = db.query(models.Item).all()
     result = []
     for item in items:
@@ -211,7 +274,8 @@ def get_items(request: Request, db: Session = Depends(get_db)):
 def create_item(
     item_name: str = Form(...),
     picture: UploadFile = File(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
 ):
     picture_path = None
     if picture:
@@ -230,7 +294,7 @@ def create_item(
 
 # 3. Log an In/Out Operation AND update item quantity
 @app.post("/operations/")
-def create_operation(op: OperationCreate, db: Session = Depends(get_db)):
+def create_operation(op: OperationCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     # Find the item we are operating on
     db_item = db.query(models.Item).filter(models.Item.item_id == op.item_id).first()
     
@@ -266,6 +330,7 @@ def create_operation(op: OperationCreate, db: Session = Depends(get_db)):
 @app.get("/operations/")
 def get_operations(
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
     start_date: str = Query(None, description="Start date in YYYY-MM-DD format"),
     end_date: str = Query(None, description="End date in YYYY-MM-DD format"),
     item_id: int = Query(None, description="Filter by item ID"),

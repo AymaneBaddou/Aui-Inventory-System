@@ -35,15 +35,7 @@ function ChangePassword() {
         return
       }
 
-      const userEmail = localStorage.getItem('userEmail')
-      if (!userEmail) {
-        setMessage('Unable to determine your account email. Please log in again.')
-        setIsLoading(false)
-        return
-      }
-
       await axios.post(`${apiBaseUrl}/change-password/`, {
-        email: userEmail,
         current_password: currentPassword,
         new_password: newPassword
       })

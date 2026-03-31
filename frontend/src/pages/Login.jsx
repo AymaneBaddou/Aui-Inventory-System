@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import { useAuth } from '../context/AuthContext'
 
-function Login({ onLogin }) {
+function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [message, setMessage] = useState('')
   const navigate = useNavigate()
+  const { login } = useAuth()
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 
   const handleLogin = async (e) => {
@@ -27,11 +29,7 @@ function Login({ onLogin }) {
         password
       })
 
-      localStorage.setItem('authToken', response.data.access_token)
-      localStorage.setItem('userEmail', response.data.user_email)
-      localStorage.setItem('isAdmin', response.data.is_admin ? 'true' : 'false')
-      setMessage('')
-      onLogin(response.data.is_admin)
+      login(response.data.access_token, response.data.user_email, response.data.is_admin)
       navigate('/')
     } catch (error) {
       if (error.response && error.response.data && error.response.data.detail) {
@@ -128,7 +126,7 @@ function Login({ onLogin }) {
 
           <div className="text-center">
             <p className="text-sm text-gray-600">
-              Demo: Any email/password combination will work
+              Sign in with your assigned email and password.
             </p>
           </div>
         </form>

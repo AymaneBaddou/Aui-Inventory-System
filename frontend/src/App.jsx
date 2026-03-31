@@ -1,5 +1,5 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import axios from 'axios'
 import Layout from './components/Layout'
 import Login from './pages/Login'
@@ -10,40 +10,32 @@ import Inventory from './pages/Inventory'
 import ChangePassword from './pages/ChangePassword'
 import TransactionHistory from './pages/TransactionHistory'
 import AddUser from './pages/AddUser'
+import { AuthProvider, useAuth } from './context/AuthContext'
 
 // Protected Route Component
-function ProtectedRoute({ children, isAuthenticated }) {
-  return isAuthenticated ? children : <Navigate to="/login" replace />
+function ProtectedRoute({ children }) {
+  const { isAuthenticated } = useAuth()
+  const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null
+  return isAuthenticated && token ? children : <Navigate to="/login" replace />
 }
 
-function AdminRoute({ children, isAuthenticated, isAdmin }) {
-  return isAuthenticated && isAdmin ? children : <Navigate to="/" replace />
+function AdminRoute({ children }) {
+  const { isAuthenticated, isAdmin } = useAuth()
+  const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null
+  return isAuthenticated && token && isAdmin ? children : <Navigate to="/" replace />
 }
 
-function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [isAdmin, setIsAdmin] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+function AppRoutes() {
+  const { isAuthenticated, isAdmin, isLoading, logout } = useAuth()
   const [items, setItems] = useState([])
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
-
-  // Check authentication on app load
-  useEffect(() => {
-    const token = localStorage.getItem('authToken')
-    const storedAdmin = localStorage.getItem('isAdmin') === 'true'
-    if (token) {
-      setIsAuthenticated(true)
-      setIsAdmin(storedAdmin)
-    }
-    setIsLoading(false)
-  }, [])
 
   const fetchItems = () => {
     axios.get(`${apiBaseUrl}/items/`)
       .then(response => {
         setItems(response.data)
       })
-      .catch(error => console.error("Error fetching inventory:", error))
+      .catch(error => console.error('Error fetching inventory:', error))
   }
 
   useEffect(() => {
@@ -51,20 +43,6 @@ function App() {
       fetchItems()
     }
   }, [isAuthenticated])
-
-  const handleLogin = (admin = false) => {
-    setIsAuthenticated(true)
-    setIsAdmin(admin)
-  }
-
-  const handleLogout = () => {
-    localStorage.removeItem('authToken')
-    localStorage.removeItem('userEmail')
-    localStorage.removeItem('isAdmin')
-    setIsAuthenticated(false)
-    setIsAdmin(false)
-    setItems([])
-  }
 
   if (isLoading) {
     return (
@@ -83,17 +61,15 @@ function App() {
         {/* Public routes */}
         <Route
           path="/login"
-          element={
-            isAuthenticated ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />
-          }
+          element={isAuthenticated ? <Navigate to="/" replace /> : <Login />}
         />
 
         {/* Protected routes */}
         <Route
           path="/"
           element={
-            <ProtectedRoute isAuthenticated={isAuthenticated}>
-              <Layout onLogout={handleLogout} isAdmin={isAdmin}>
+            <ProtectedRoute>
+              <Layout onLogout={logout} isAdmin={isAdmin}>
                 <Dashboard items={items} onRefreshItems={fetchItems} />
               </Layout>
             </ProtectedRoute>
@@ -103,8 +79,8 @@ function App() {
         <Route
           path="/add-item"
           element={
-            <ProtectedRoute isAuthenticated={isAuthenticated}>
-              <Layout onLogout={handleLogout} isAdmin={isAdmin}>
+            <ProtectedRoute>
+              <Layout onLogout={logout} isAdmin={isAdmin}>
                 <div className="max-w-2xl mx-auto">
                   <AddItem onItemAdded={fetchItems} />
                 </div>
@@ -116,8 +92,8 @@ function App() {
         <Route
           path="/log-operation"
           element={
-            <ProtectedRoute isAuthenticated={isAuthenticated}>
-              <Layout onLogout={handleLogout} isAdmin={isAdmin}>
+            <ProtectedRoute>
+              <Layout onLogout={logout} isAdmin={isAdmin}>
                 <div className="max-w-2xl mx-auto">
                   <LogOperation items={items} onOperationLogged={fetchItems} />
                 </div>
@@ -129,8 +105,8 @@ function App() {
         <Route
           path="/inventory"
           element={
-            <ProtectedRoute isAuthenticated={isAuthenticated}>
-              <Layout onLogout={handleLogout} isAdmin={isAdmin}>
+            <ProtectedRoute>
+              <Layout onLogout={logout} isAdmin={isAdmin}>
                 <Inventory items={items} />
               </Layout>
             </ProtectedRoute>
@@ -140,7 +116,7 @@ function App() {
         <Route
           path="/change-password"
           element={
-            <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <ProtectedRoute>
               <ChangePassword />
             </ProtectedRoute>
           }
@@ -149,8 +125,8 @@ function App() {
         <Route
           path="/users"
           element={
-            <AdminRoute isAuthenticated={isAuthenticated} isAdmin={isAdmin}>
-              <Layout onLogout={handleLogout} isAdmin={isAdmin}>
+            <AdminRoute>
+              <Layout onLogout={logout} isAdmin={isAdmin}>
                 <AddUser />
               </Layout>
             </AdminRoute>
@@ -160,8 +136,8 @@ function App() {
         <Route
           path="/transaction-history"
           element={
-            <ProtectedRoute isAuthenticated={isAuthenticated}>
-              <Layout onLogout={handleLogout} isAdmin={isAdmin}>
+            <ProtectedRoute>
+              <Layout onLogout={logout} isAdmin={isAdmin}>
                 <TransactionHistory />
               </Layout>
             </ProtectedRoute>
@@ -172,6 +148,14 @@ function App() {
         <Route path="*" element={<Navigate to={isAuthenticated ? "/" : "/login"} replace />} />
       </Routes>
     </Router>
+  )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   )
 }
 
