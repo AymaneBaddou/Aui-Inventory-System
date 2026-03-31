@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import models
@@ -9,8 +10,19 @@ import os
 import shutil
 from pathlib import Path
 from datetime import datetime
+import uuid
+from passlib.context import CryptContext
 
 models.Base.metadata.create_all(bind=engine)
+
+# Fix missing user schema columns in existing databases
+with engine.begin() as connection:
+    if engine.dialect.name == 'postgresql':
+        connection.execute(text('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE'))
+    elif engine.dialect.name == 'sqlite':
+        result = connection.execute(text("PRAGMA table_info('users')")).fetchall()
+        if not any(row[1] == 'is_admin' for row in result):
+            connection.execute(text('ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT 0'))
 
 # Create uploads directory if it doesn't exist
 UPLOAD_DIR = Path("uploads")
@@ -34,6 +46,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
+# Create a default admin user if no users exist,
+# and repair the default admin account if it already exists without admin rights.
+with SessionLocal() as db:
+    default_email = os.getenv("DEFAULT_ADMIN_EMAIL", "admin@aui.com")
+    default_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
+    admin_user = db.query(models.User).filter(models.User.email == default_email).first()
+
+    if db.query(models.User).count() == 0:
+        default_user = models.User(
+            email=default_email,
+            hashed_password=get_password_hash(default_password),
+            full_name="Administrator",
+            is_admin=True
+        )
+        db.add(default_user)
+        db.commit()
+    elif admin_user and not admin_user.is_admin:
+        admin_user.is_admin = True
+        db.commit()
+    elif not db.query(models.User).filter(models.User.is_admin == True).first():
+        first_user = db.query(models.User).first()
+        if first_user:
+            first_user.is_admin = True
+            db.commit()
+
+
 def get_db():
     db = SessionLocal()
     try: 
@@ -52,8 +99,91 @@ class OperationCreate(BaseModel):
     person_in_charge: str
     department: str
 
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class UserCreate(BaseModel):
+    email: str
+    password: str
+    full_name: str | None = None
+
+class ChangePasswordRequest(BaseModel):
+    email: str
+    current_password: str
+    new_password: str
+
 
 # --- API ENDPOINTS ---
+@app.post("/login/")
+def login(login_request: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == login_request.email).first()
+    if not user or not verify_password(login_request.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    token = str(uuid.uuid4())
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user_email": user.email,
+        "full_name": user.full_name,
+        "is_admin": user.is_admin
+    }
+
+
+@app.post("/change-password/")
+def change_password(change_request: ChangePasswordRequest, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == change_request.email).first()
+    if not user or not verify_password(change_request.current_password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+
+    if len(change_request.new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters long")
+
+    user.hashed_password = get_password_hash(change_request.new_password)
+    db.commit()
+    return {"message": "Password updated successfully"}
+
+
+@app.post("/users/")
+def create_user(user_create: UserCreate, db: Session = Depends(get_db)):
+    existing_user = db.query(models.User).filter(models.User.email == user_create.email).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="A user with that email already exists")
+
+    new_user = models.User(
+        email=user_create.email,
+        hashed_password=get_password_hash(user_create.password),
+        full_name=user_create.full_name,
+        is_active=True
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return {
+        "user_id": new_user.user_id,
+        "email": new_user.email,
+        "full_name": new_user.full_name,
+        "is_active": new_user.is_active,
+        "is_admin": new_user.is_admin
+    }
+
+
+@app.get("/users/")
+def list_users(db: Session = Depends(get_db)):
+    users = db.query(models.User).all()
+    return [
+        {
+            "user_id": user.user_id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "is_active": user.is_active,
+            "is_admin": user.is_admin
+        }
+        for user in users
+    ]
+
 @app.get("/")
 def read_root():
     return {"Status": "Success", "Message": "The AUI Inventory Backend is running!"}

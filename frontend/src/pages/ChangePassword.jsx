@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import axios from 'axios'
 
 function ChangePassword() {
   const [currentPassword, setCurrentPassword] = useState('')
@@ -8,6 +9,7 @@ function ChangePassword() {
   const [isLoading, setIsLoading] = useState(false)
   const [message, setMessage] = useState('')
   const navigate = useNavigate()
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -15,32 +17,51 @@ function ChangePassword() {
     setMessage('')
 
     try {
-      // Basic validation
       if (!currentPassword || !newPassword || !confirmPassword) {
         setMessage('Please fill in all fields')
+        setIsLoading(false)
         return
       }
 
       if (newPassword !== confirmPassword) {
         setMessage('New passwords do not match')
+        setIsLoading(false)
         return
       }
 
       if (newPassword.length < 6) {
         setMessage('New password must be at least 6 characters long')
+        setIsLoading(false)
         return
       }
 
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      const userEmail = localStorage.getItem('userEmail')
+      if (!userEmail) {
+        setMessage('Unable to determine your account email. Please log in again.')
+        setIsLoading(false)
+        return
+      }
+
+      await axios.post(`${apiBaseUrl}/change-password/`, {
+        email: userEmail,
+        current_password: currentPassword,
+        new_password: newPassword
+      })
 
       setMessage('Password changed successfully!')
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+
       setTimeout(() => {
         navigate('/')
-      }, 2000)
-
+      }, 1500)
     } catch (error) {
-      setMessage('Failed to change password. Please try again.')
+      if (error.response && error.response.data && error.response.data.detail) {
+        setMessage(error.response.data.detail)
+      } else {
+        setMessage('Failed to change password. Please try again.')
+      }
     } finally {
       setIsLoading(false)
     }

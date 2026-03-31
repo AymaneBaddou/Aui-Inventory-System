@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import Sidebar from './Sidebar'
 
-function Layout({ children, onLogout }) {
+function Layout({ children, onLogout, isAdmin }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
@@ -11,14 +11,14 @@ function Layout({ children, onLogout }) {
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black bg-opacity-25" onClick={() => setSidebarOpen(false)}></div>
           <div className="relative">
-            <Sidebar onClose={() => setSidebarOpen(false)} onLogout={onLogout} />
+            <Sidebar onClose={() => setSidebarOpen(false)} onLogout={onLogout} isAdmin={isAdmin} />
           </div>
         </div>
       )}
 
       {/* Desktop Sidebar */}
       <div className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0">
-        <Sidebar onLogout={onLogout} />
+        <Sidebar onLogout={onLogout} isAdmin={isAdmin} />
       </div>
 
       {/* Main content */}

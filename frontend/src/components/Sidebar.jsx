@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 
-function Sidebar({ onClose, onLogout }) {
+function Sidebar({ onClose, onLogout, isAdmin }) {
   const location = useLocation()
 
   const navItems = [
@@ -8,12 +8,14 @@ function Sidebar({ onClose, onLogout }) {
     { path: '/add-item', label: 'Add Item', icon: '➕', category: 'main' },
     { path: '/log-operation', label: 'Log Operation', icon: '📝', category: 'operations' },
     { path: '/transaction-history', label: 'Transaction History', icon: '📋', category: 'operations' },
+    { path: '/users', label: 'Staff Users', icon: '👥', category: 'operations', adminOnly: true },
     { path: '/change-password', label: 'Change Password', icon: '🔒', category: 'account' }
   ]
 
-  const mainNav = navItems.filter(item => item.category === 'main')
-  const operationsNav = navItems.filter(item => item.category === 'operations')
-  const accountNav = navItems.filter(item => item.category === 'account')
+  const visibleNavItems = navItems.filter(item => !item.adminOnly || isAdmin)
+  const mainNav = visibleNavItems.filter(item => item.category === 'main')
+  const operationsNav = visibleNavItems.filter(item => item.category === 'operations')
+  const accountNav = visibleNavItems.filter(item => item.category === 'account')
 
   const handleLinkClick = () => {
     if (onClose) {
@@ -111,13 +113,9 @@ function Sidebar({ onClose, onLogout }) {
               <span className="text-lg">🚪</span>
               <span className="font-medium text-sm">Logout</span>
             </button>
-            
-          </nav><nav className="space-y-1">
-            
           </nav>
-        </div
-
->      </div>
+        </div>
+      </div>
     </div>
   )
 }

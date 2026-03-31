@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import axios from 'axios'
 
 function Login({ onLogin }) {
   const [email, setEmail] = useState('')
@@ -7,29 +8,37 @@ function Login({ onLogin }) {
   const [isLoading, setIsLoading] = useState(false)
   const [message, setMessage] = useState('')
   const navigate = useNavigate()
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 
   const handleLogin = async (e) => {
     e.preventDefault()
     setIsLoading(true)
     setMessage('')
 
+    if (!email || !password) {
+      setMessage('Please fill in all fields')
+      setIsLoading(false)
+      return
+    }
+
     try {
-      // For demo purposes, accept any email/password combination
-      if (email && password) {
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000))
+      const response = await axios.post(`${apiBaseUrl}/login/`, {
+        email,
+        password
+      })
 
-        // Store auth token (in real app, this would come from API)
-        localStorage.setItem('authToken', 'demo-token')
-        localStorage.setItem('userEmail', email)
-
-        onLogin()
-        navigate('/')
-      } else {
-        setMessage('Please fill in all fields')
-      }
+      localStorage.setItem('authToken', response.data.access_token)
+      localStorage.setItem('userEmail', response.data.user_email)
+      localStorage.setItem('isAdmin', response.data.is_admin ? 'true' : 'false')
+      setMessage('')
+      onLogin(response.data.is_admin)
+      navigate('/')
     } catch (error) {
-      setMessage('Login failed. Please try again.')
+      if (error.response && error.response.data && error.response.data.detail) {
+        setMessage(error.response.data.detail)
+      } else {
+        setMessage('Login failed. Please try again.')
+      }
     } finally {
       setIsLoading(false)
     }
