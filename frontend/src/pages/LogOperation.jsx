@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import axios from 'axios'
+import { useAuth } from '../context/AuthContext'
 
 function LogOperation({ items, onOperationLogged }) {
+  const { userFullName } = useAuth()
   const [opItemId, setOpItemId] = useState('')
   const [opType, setOpType] = useState('in')
   const [opQuantity, setOpQuantity] = useState('')
-  const [opPerson, setOpPerson] = useState('')
   const [opDepartment, setOpDepartment] = useState('')
 
   const handleOperation = (e) => {
@@ -14,12 +15,11 @@ function LogOperation({ items, onOperationLogged }) {
       item_id: parseInt(opItemId),
       operation_type: opType,
       quantity_moved: parseInt(opQuantity),
-      person_in_charge: opPerson,
+      person_in_charge: userFullName || '',
       department: opDepartment
     })
     .then(() => {
       setOpQuantity('')
-      setOpPerson('')
       setOpDepartment('')
       onOperationLogged() // Callback to refresh inventory
     })
@@ -92,11 +92,9 @@ function LogOperation({ items, onOperationLogged }) {
             <label className="block text-sm font-medium text-gray-700 mb-2">Person in Charge</label>
             <input
               type="text"
-              placeholder="Your name"
-              value={opPerson}
-              onChange={(e) => setOpPerson(e.target.value)}
-              required
-              className={inputStyles}
+              readOnly
+              value={userFullName || 'Logged-in user'}
+              className={`${inputStyles} bg-gray-100 cursor-not-allowed`}
             />
           </div>
         </div>

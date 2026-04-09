@@ -147,7 +147,7 @@ class OperationCreate(BaseModel):
     item_id: int
     operation_type: str
     quantity_moved: int
-    person_in_charge: str
+    person_in_charge: str | None = None
     department: str
 
 class LoginRequest(BaseModel):
@@ -311,12 +311,15 @@ def create_operation(op: OperationCreate, db: Session = Depends(get_db), current
     else:
         raise HTTPException(status_code=400, detail="Operation type must be 'in' or 'out'")
 
+    # Force the logged-in user's account name into the operation record
+    person_in_charge = current_user.full_name or current_user.email
+
     # Record the operation in the history log
     new_op = models.Operation(
         item_id=op.item_id,
         operation_type=op.operation_type,
         quantity_moved=op.quantity_moved,
-        person_in_charge=op.person_in_charge,
+        person_in_charge=person_in_charge,
         department=op.department
     )
     

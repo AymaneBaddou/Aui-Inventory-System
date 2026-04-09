@@ -7,7 +7,8 @@ export function AuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const [userEmail, setUserEmail] = useState(null)
+  const [userEmail, setUserEmail] = useState(() => sessionStorage.getItem('userEmail') || null)
+  const [userFullName, setUserFullName] = useState(() => sessionStorage.getItem('userFullName') || null)
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 
   const setAuthHeader = (token) => {
@@ -18,17 +19,20 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const login = (token, email, admin) => {
+  const login = (token, email, fullName, admin) => {
     sessionStorage.setItem('authToken', token)
     sessionStorage.setItem('userEmail', email)
+    sessionStorage.setItem('userFullName', fullName || '')
     sessionStorage.setItem('isAdmin', admin ? 'true' : 'false')
     setAuthHeader(token)
     setIsAuthenticated(true)
     setIsAdmin(admin)
     setUserEmail(email)
+    setUserFullName(fullName)
   }
 
   const logout = () => {
+    sessionStorage.removeItem('userFullName')
     sessionStorage.removeItem('authToken')
     sessionStorage.removeItem('userEmail')
     sessionStorage.removeItem('isAdmin')
@@ -36,6 +40,7 @@ export function AuthProvider({ children }) {
     setIsAuthenticated(false)
     setIsAdmin(false)
     setUserEmail(null)
+    setUserFullName(null)
   }
 
   useEffect(() => {
@@ -51,6 +56,7 @@ export function AuthProvider({ children }) {
         setIsAuthenticated(true)
         setIsAdmin(response.data.is_admin)
         setUserEmail(response.data.email)
+        setUserFullName(response.data.full_name || response.data.email)
       })
       .catch(() => {
         logout()
@@ -61,7 +67,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isAdmin, isLoading, userEmail, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, isAdmin, isLoading, userEmail, userFullName, login, logout }}>
       {children}
     </AuthContext.Provider>
   )
